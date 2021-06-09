@@ -28,12 +28,15 @@ def trainAndReleaseGrads(model,trainData,stopIter,crit,opt):
     the gradient and model
     """
     model.train()
-    for idx, (features,labels) in trainData:
+    for idx, (features,y) in trainData:
         opt.zero_grad()
         out = model(features)
+        #turn to one hot
+        labels = torch.zeros(10)
+        labels[y[0]] = 1
         loss = crit(out,labels)
         #if we are done, release gradient
-        if idx >stopIter:
+        if idx > stopIter:
             gradient = autograd.grad(loss,model.parameters())
             trueGrad = list((_.detach().clone() for _ in gradient))
             return model,trueGrad
@@ -43,3 +46,19 @@ def trainAndReleaseGrads(model,trainData,stopIter,crit,opt):
         if idx%1000==0:
             print("Example: {}, loss: {}".format(idx,lossVal))
 
+#https://github.com/mit-han-lab/dlg
+def closure():
+    optimizer.zero_grad()
+    pred = model(x)
+    oneHotY = F.softmax(y,dim=-1)
+    modelLoss = crit(pred,oneHotY)
+    leakGrad = autograd.grad(modelLoss,model.parameters(),create_graph=True)   
+    distance = 0
+    for gx,gy in zip(leakGrad,grad):
+        distance += ((gx - gy)**2).sum()
+    distance.backward()
+    return distance
+
+#must use this as pytorch does not support one hot for cat crosentropy
+def cross_entropy_for_onehot(pred, target):
+    return torch.mean(torch.sum(- target * F.log_softmax(pred, dim=-1), 1))
